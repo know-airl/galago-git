@@ -50,6 +50,7 @@ public abstract class DocumentStreamParser implements Closeable {
       fileTypeMap.put("corpus", CorpusSplitParser.class);
       fileTypeMap.put("selectivecorpus", CorpusSelectiveSplitParser.class);
       fileTypeMap.put("wiki", WikiParser.class);
+      fileTypeMap.put("cbor", TrecCarCborParser.class);
 
       // Look for external mapping definitions
       if (parameters.containsKey("externalParsers")) {
