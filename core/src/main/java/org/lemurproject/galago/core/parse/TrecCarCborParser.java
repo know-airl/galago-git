@@ -152,9 +152,10 @@ public class TrecCarCborParser extends DocumentStreamParser {
       if (body instanceof Data.ParaLink) {
         Data.ParaLink link = (Data.ParaLink) body;
         createField("link", link.getPageId(), buffer, false, false);
-        String decodedAnchors = StringEscapeUtils.unescapeHtml4(link.getAnchorText());
-        decodedAnchors = decodedAnchors.replaceAll("%20", " ");
-        createField("anchor", decodedAnchors, buffer, false, true);
+//        String decodedAnchors = StringEscapeUtils.unescapeHtml4(link.getAnchorText());
+//        decodedAnchors = decodedAnchors.replaceAll("%20", " ");
+        createField("page", link.getPage(), buffer, false, true);
+        buffer.append(link.getAnchorText());
       } else if (body instanceof Data.ParaText) {
         buffer.append(((Data.ParaText) body).getText());
       } else {
