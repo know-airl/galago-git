@@ -34,7 +34,27 @@ public class TrecCarCborParser extends DocumentStreamParser {
   }
 
   // The type of CBOR document being parsed.
-  private DocumentType documentType = DocumentType.PARAGRAPH;
+  private DocumentType documentType = DocumentType.PAGES;
+
+  private String redirectPath = "/media/jeff/main/Downloads/entity-redirects/unprocessed_train.cbor.redirects.tsv";
+
+  HashMap<String,String> redirectMap = new HashMap(); // loadRedirectMap(redirectPath);
+
+  private HashMap<String, String> loadRedirectMap(String filePath) throws IOException {
+    HashMap<String,String> redirects = new HashMap<String, String>();
+    FileReader fileReader = new FileReader(filePath);
+    BufferedReader bufReader = new BufferedReader(fileReader);
+    try {
+      String input = null;
+      while ((input = bufReader.readLine()) != null) {
+        String[] fields = input.split("\t");
+        redirects.put(fields[0], fields[1]);
+      }
+    } finally {
+      bufReader.close();
+    }
+    return redirects;
+  }
 
   private int numDocuments = 0;
   /**
@@ -151,9 +171,17 @@ public class TrecCarCborParser extends DocumentStreamParser {
     for (Data.ParaBody body : paragraph.getBodies()) {
       if (body instanceof Data.ParaLink) {
         Data.ParaLink link = (Data.ParaLink) body;
+
+        // Resolve redirects.
+        String targetPage = link.getPageId();
+//        if (redirectMap.containsKey(link.getPageId())) {
+//          targetPage = redirectMap.get(link.getPageId());
+//        }
+
         createField("link", link.getPageId(), buffer, false, false);
 //        String decodedAnchors = StringEscapeUtils.unescapeHtml4(link.getAnchorText());
 //        decodedAnchors = decodedAnchors.replaceAll("%20", " ");
+
         createField("page", link.getPage(), buffer, false, true);
         buffer.append(link.getAnchorText());
       } else if (body instanceof Data.ParaText) {
