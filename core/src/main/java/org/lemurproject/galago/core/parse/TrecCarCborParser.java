@@ -161,6 +161,11 @@ public class TrecCarCborParser extends DocumentStreamParser {
       Data.Para para = (Data.Para) skel;
       Data.Paragraph paragraph = para.getParagraph();
       buffer.append(textFromParagraph(paragraph));
+    } else if (skel instanceof Data.Image) {
+      Data.Image image = (Data.Image) skel;
+      for (Data.PageSkeleton child: image.getCaptionSkel()) {
+        recurseArticle(child, buffer);
+      }
     } else {
       throw new UnsupportedOperationException("not known skel " + skel);
     }
