@@ -135,9 +135,9 @@
     </dependency>
 
     <dependency>
-      <groupId>edu.unh.cs.treccar</groupId>
-      <artifactId>treccar-tools</artifactId>
-      <version>1.5-SNAPSHOT</version>
+      <groupId>com.github.TREMA-UNH</groupId>
+      <artifactId>trec-car-tools-java</artifactId>
+      <version>2.0-SNAPSHOT</version>
     </dependency>
 
     <dependency>

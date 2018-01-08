@@ -1,11 +1,7 @@
 package org.lemurproject.galago.core.parse;
 
-import co.nstant.in.cbor.CborDecoder;
-import co.nstant.in.cbor.CborException;
-import co.nstant.in.cbor.model.*;
-import co.nstant.in.cbor.model.DataItem;
-import edu.unh.cs.treccar.Data;
-import edu.unh.cs.treccar.read_data.DeserializeData;
+import edu.unh.cs.treccar_v2.Data;
+import edu.unh.cs.treccar_v2.read_data.DeserializeData;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.lemurproject.galago.core.types.DocumentSplit;
 import org.lemurproject.galago.utility.Parameters;
@@ -36,25 +32,25 @@ public class TrecCarCborParser extends DocumentStreamParser {
   // The type of CBOR document being parsed.
   private DocumentType documentType = DocumentType.PAGES;
 
-  private String redirectPath = "/media/jeff/main/Downloads/entity-redirects/unprocessed_train.cbor.redirects.tsv";
-
-  HashMap<String,String> redirectMap = new HashMap(); // loadRedirectMap(redirectPath);
-
-  private HashMap<String, String> loadRedirectMap(String filePath) throws IOException {
-    HashMap<String,String> redirects = new HashMap<String, String>();
-    FileReader fileReader = new FileReader(filePath);
-    BufferedReader bufReader = new BufferedReader(fileReader);
-    try {
-      String input = null;
-      while ((input = bufReader.readLine()) != null) {
-        String[] fields = input.split("\t");
-        redirects.put(fields[0], fields[1]);
-      }
-    } finally {
-      bufReader.close();
-    }
-    return redirects;
-  }
+//  private String redirectPath = "/media/jeff/main/Downloads/entity-redirects/unprocessed_train.cbor.redirects.tsv";
+//
+//  HashMap<String,String> redirectMap = new HashMap(); // loadRedirectMap(redirectPath);
+//
+//  private HashMap<String, String> loadRedirectMap(String filePath) throws IOException {
+//    HashMap<String,String> redirects = new HashMap<String, String>();
+//    FileReader fileReader = new FileReader(filePath);
+//    BufferedReader bufReader = new BufferedReader(fileReader);
+//    try {
+//      String input = null;
+//      while ((input = bufReader.readLine()) != null) {
+//        String[] fields = input.split("\t");
+//        redirects.put(fields[0], fields[1]);
+//      }
+//    } finally {
+//      bufReader.close();
+//    }
+//    return redirects;
+//  }
 
   private int numDocuments = 0;
   /**
@@ -109,7 +105,7 @@ public class TrecCarCborParser extends DocumentStreamParser {
 
   private Document nextParagraph() {
     Data.Paragraph paragraph = (Data.Paragraph) dataIterator.next();
-    String paragraphText = textFromParagraph(paragraph);
+    String paragraphText = contentFromParagraph(paragraph);
     Document document = new Document(paragraph.getParaId(), paragraphText);
     return document;
   }
@@ -119,28 +115,66 @@ public class TrecCarCborParser extends DocumentStreamParser {
     Data.Page page = (Data.Page) dataIterator.next();
     StringBuilder buffer = new StringBuilder();
     createField("title", page.getPageName(), buffer, false, true);
+    createField("title-exact", page.getPageName(), buffer, false, false);
+
     for (Data.PageSkeleton skel : page.getSkeleton()) {
       recurseArticle(skel, buffer);
     }
-    // TODO:JeffDalton add support for page metadata.
 
-//    Data.PageMetadata metadata = page.getPageMetadata();
+    Data.PageMetadata metadata = page.getPageMetadata();
+
+    List cleaned_disambiguation = new ArrayList();
+    for (String disambiguation : metadata.getDisambiguationNames()) {
+      cleaned_disambiguation.add(disambiguation.replace(" (disambiguation)", ""));
+    }
+    createField("disambiguation-name", cleaned_disambiguation, buffer, true);
+    createField("disambiguation-id", metadata.getDisambiguationIds(), buffer, false);
+
+    List<String> cleaned_categories = new ArrayList();
+    for (String category : metadata.getCategoryNames()) {
+      cleaned_categories.add(category.replace("Category:", ""));
+    }
+    createField("category", cleaned_categories, buffer, true);
+    createField("category-id", metadata.getCategoryIds(), buffer, false);
+
+    createField("inlink", metadata.getInlinkIds(), buffer, false);
+    createField("anchor", metadata.getInlinkAnchors(), buffer, true);
+
+    createField("redirect", metadata.getRedirectNames(), buffer, true);
+    createField("redirect-exact", metadata.getRedirectNames(), buffer, false);
+
+    List<String> listOf = new ArrayList();
+    for (String inlink : metadata.getInlinkIds()) {
+      if (inlink.startsWith("enwiki:List%20of%20")) {
+        listOf.add(inlink.replace("enwiki:List%20of%20", "").replaceAll("%20", " "));
+      }
+    }
+    createField("list-type", listOf, buffer, true);
+    createField("list-type-exact", listOf, buffer, false);
+
 
     Document result = new Document(page.getPageName(), buffer.toString());
-//    res.metadata.put("title", page.getPageName());
-//    res.metadata.put("inlink", inlinkCount + "");
+    result.metadata.put("title", page.getPageName());
+    result.metadata.put("inlinkCount", metadata.getInlinkIds().size() + "");
 //    res.metadata.put("kbName", kbName);
 //    res.metadata.put("kbId", kbId);
 //    res.metadata.put("kbType", kbType);
 //    res.metadata.put("fbname", freebaseNames);
-//    res.metadata.put("category", categories);
+      result.metadata.put("category", String.join("\t", metadata.getCategoryIds()));
+      result.metadata.put("redirect", String.join("\t", metadata.getRedirectNames()));
+
 //    res.metadata.put("fbtype", freebaseTypes);
-//    res.metadata.put("srcInlinks", sourceInlinks);
+      result.metadata.put("inlink", String.join("\t", metadata.getInlinkIds()));
+      result.metadata.put("anchor", String.join("\t", metadata.getInlinkAnchors()));
+      result.metadata.put("disambiguationId", String.join("\t", metadata.getDisambiguationIds()));
+      result.metadata.put("listTypes", String.join("\t", listOf));
+
 //    res.metadata.put("xml", wikiXml);
 //    res.metadata.put("externalLinkCount", externalInlinkCount + "");
 //    res.metadata.put("contextLinks", contextLinks);
 
     return result;
+
   }
 
   /**
@@ -160,34 +194,32 @@ public class TrecCarCborParser extends DocumentStreamParser {
     } else if (skel instanceof Data.Para) {
       Data.Para para = (Data.Para) skel;
       Data.Paragraph paragraph = para.getParagraph();
-      buffer.append(textFromParagraph(paragraph));
+      buffer.append(contentFromParagraph(paragraph));
     } else if (skel instanceof Data.Image) {
       Data.Image image = (Data.Image) skel;
       for (Data.PageSkeleton child: image.getCaptionSkel()) {
         recurseArticle(child, buffer);
       }
+    } else if (skel instanceof Data.ListItem) {
+      Data.ListItem item = (Data.ListItem) skel;
+      Data.Paragraph paragraph = item.getBodyParagraph();
+      buffer.append(contentFromParagraph(paragraph));
     } else {
-      throw new UnsupportedOperationException("not known skel " + skel);
+      throw new UnsupportedOperationException("not known skel type " + skel.getClass().getTypeName() + "; " + skel);
     }
   }
 
-  private static String textFromParagraph(Data.Paragraph paragraph) {
+  private static String contentFromParagraph(Data.Paragraph paragraph) {
     StringBuilder buffer = new StringBuilder();
     for (Data.ParaBody body : paragraph.getBodies()) {
       if (body instanceof Data.ParaLink) {
         Data.ParaLink link = (Data.ParaLink) body;
 
-        // Resolve redirects.
-        String targetPage = link.getPageId();
-//        if (redirectMap.containsKey(link.getPageId())) {
-//          targetPage = redirectMap.get(link.getPageId());
-//        }
-
         createField("link", link.getPageId(), buffer, false, false);
 //        String decodedAnchors = StringEscapeUtils.unescapeHtml4(link.getAnchorText());
 //        decodedAnchors = decodedAnchors.replaceAll("%20", " ");
 
-        createField("page", link.getPage(), buffer, false, true);
+        createField("a", link.getPage(), buffer, false, true);
         buffer.append(link.getAnchorText());
       } else if (body instanceof Data.ParaText) {
         buffer.append(((Data.ParaText) body).getText());
@@ -227,8 +259,8 @@ public class TrecCarCborParser extends DocumentStreamParser {
    * @param tokenize
    * @return
    */
-  private static String createField(String fieldName, List<String> values, StringBuilder sb, boolean tokenize) {
-    if (values == null || values.size() == 0) {
+  private static String createField(String fieldName, Iterable<String> values, StringBuilder sb, boolean tokenize) {
+    if (values == null || !values.iterator().hasNext()) {
       return "";
     }
     for (String val : values) {
